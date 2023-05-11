@@ -22,21 +22,21 @@ def generate_id(tag):
 
 # __________________________________________________________________________________________________________
 
+# Chemin absolu du dossier contenant les fichiers à parcourir
+#les dossiers et le notebook doivent être dans le même sous dossier
 
-# Chemin relatif du dossier contenant les fichiers à parcourir
-dossier_json = "data/json"  # en réaité les noms des dossiers sont json_data et xml_data
-dossier_xml = "data/xml"
 
-# Obtenir le chemin absolu du dossier contenant les fichiers
-dossier_json_abs = Path(dossier_json)
-dossier_xml_abs = Path(dossier_xml)
+dossier_json = os.path.join(os.getcwd(), "json_data")
+dossier_xml = os.path.join(os.getcwd(), "xml_data")
 
 # Itérer sur tous les fichiers dans le dossier
-for json_file in dossier_json_abs.glob("*.json"): 
-    # Ouvrir le fichier JSON
-    with open(json_file, "r", encoding="utf-8") as f:
-        # Lire le contenu du fichier JSON
-        data = json.load(f)
+for filename in os.listdir(dossier_json):
+    # Vérifier si le fichier est un fichier JSON
+    if filename.endswith(".json"):
+        # Ouvrir le fichier JSON
+        with open(os.path.join(dossier_json, filename), "r", encoding="utf-8") as f:
+            # Lire le contenu du fichier JSON
+            data = json.load(f)
 
 
         #Création de l'élément racine et le squelette du xml
@@ -128,7 +128,6 @@ for json_file in dossier_json_abs.glob("*.json"):
             else:
                 # Ajouter l'élément ptr avec les attributs standard
                 ptr = ET.SubElement(persName, "ptr", type=identifiant, target=personne)
-
 
 
         # Création de l'élément funder
@@ -273,18 +272,17 @@ for json_file in dossier_json_abs.glob("*.json"):
 
      # fin de la description du projet--------------------------------------------------------    
 # Certaines balise doivent être déclarés hors de la boucle ___________________________________________________________
-        u_element = ET.SubElement(body, "u")
+        
         div_sitting = ET.SubElement(body, "div", attrib={"type": "sitting"})
         div_content = ET.SubElement(div_sitting, "div", attrib={"type": "content"})
         list_item = ET.SubElement(div_content, "list")
-
-
+        u_element = ET.SubElement(div_content, "u")
 
 
 # Récuppération automatique des partie ['texte_ocr'] de tous les fichiers json_________________________________________
 # Pour tous fichiers en cours de lecture, pour chaque box du fichier, 
-        for i in range(len(data)):
 
+        for i in range(len(data)):
 
         # Ensuite, si "comment" est dans la box du fichier alors:
             if "comment" in data[i]:
@@ -293,8 +291,10 @@ for json_file in dossier_json_abs.glob("*.json"):
 
                 if data[i]['comment'] == 'page-number':
                     # Ajouter un élément 'page-number' avec le contenu de la clé 'text_ocr'
-                    page_number = ET.SubElement(body,"pb")
+                    page_number = ET.SubElement(body, "pb", attrib={"n": "{}".format(page_number)})
                     page_number.text = data[i]['text_ocr']
+                    body.insert(0, bp_element)
+                    
 
                 elif data[i]['comment'] == 'page-number-ref':
                     # Ajouter un élément 'page-number-ref' avec le contenu de la clé 'text_ocr'
@@ -304,28 +304,16 @@ for json_file in dossier_json_abs.glob("*.json"):
                     page_number_ref.text = data[i]['text_ocr'] 
 
                 elif data[i]['comment'] == 'part head':
-                    comment = ET.Comment("Partie") 
                     # Ajouter un élément 'part head' avec le contenu de la clé 'text_ocr'
                     div = ET.SubElement(body, "div", attrib={"type": "part", "corresp": "#pv"})
                     part_head = ET.SubElement(div, "head" )
                     part_head.text = data[i]['text_ocr'] 
-                    # Vérifier si le texte commence par "Présidence de"
-                    if part_head.text and "PRESIDENCE DE" in part_head.text.upper():
-                        # Extraire le nom de la personne
-                        name = part_head.text.split("PRESIDENCE DE")[-1].strip()
-                        # Créer un élément PersName avec la référence "#pers_ID"
-                        PersName = ET.Element("PersName", attrib={"ref": "#pers_ID"})
-                        PersName.text = name
-                        # Créer un nouvel élément head avec le texte "PRESIDENCE DE" et l'élément PersName
-                        new_head = ET.Element("head")
-                        new_head.text = "Présidence de "
-                        new_head.append(PersName)
-                        # Remplacer l'élément part_head par le nouvel élément head
-                        div.replace(part_head, new_head)
+                    div.addprevious(etree.Comment(generate_id("Partie_")))
+                    
 
                 elif data[i]['comment'] == 'opening seg':
                     # Ajouter un élément 'opening seg' avec le contenu de la clé 'text_ocr'
-                    note = ET.SubElement(body, "note", {"type": "opening", "{http://www.w3.org/XML/1998/namespace}id": filename.split("_")[3] +"_" + generate_id("n")})
+                    note = ET.SubElement(body, "note", {"type": "opening", "{http://www.w3.org/XML/1998/namespace}id": "ID_" + filename.split("_")[3] + "_" + generate_id("n")})
                     opening_seg = ET.SubElement(note, "seg", {"type": "opening", "{http://www.w3.org/XML/1998/namespace}id": generate_id("s")})
                     opening_seg.text = data[i]['text_ocr']  
 
@@ -412,13 +400,13 @@ for json_file in dossier_json_abs.glob("*.json"):
 
                 elif data[i]['comment'] == 'u-beginning seg':
                     # Ajouter un élément 'u-beginning seg' avec un élément 'seg' contenant le contenu de la clé 'text_ocr'
-                    u_element = ET.SubElement(body, "u")
+                    u_element = ET.SubElement(div_content, "u")
                     u_beginning_seg = ET.SubElement(u_element, "seg")
                     u_beginning_seg.text = data[i]['text_ocr']
 
                 elif data[i]['comment'] == 'u-end seg':
                     # Ajouter un élément 'u-end seg' avec un élément 'seg' contenant le contenu de la clé 'text_ocr'
-                    u_element = ET.SubElement(body, "u")
+                    u_element = ET.SubElement(div_content, "u")
                     u_end_seg = ET.SubElement(u_element, "seg")
                     u_end_seg.text = data[i]['text_ocr']
 
@@ -479,14 +467,15 @@ for json_file in dossier_json_abs.glob("*.json"):
                     if data[i]['text_ocr'] == "SOMMAIRE" or data[i]['text_ocr'] == "Sommaire":
                         sc_element = ET.SubElement(div_content, "head")
                         sc_element.text = data[i]['text_ocr']
+                        div_content.insert(0, sc_element)
                     else :
                         sc_element.text = data[i]['text_ocr']
-                    div_content.insert(0, sc_element)
-
+                        div_content.insert(0, sc_element)
+                
                 elif data[i]['comment'] == 'body page-number date-pub':
                     # Ajouter un élément 'body page-number date-pub' avec le contenu de la clé 'text_ocr'
                     bp_element = ET.SubElement(body, "pb", attrib={"n": "{}".format(page_number)})
-                    #body.text = data[i]['text_ocr']
+                    body.insert(0, bp_element)
 
                 # récupération de la date de publication ___________________________________________________
 
@@ -575,7 +564,8 @@ for json_file in dossier_json_abs.glob("*.json"):
                 elif data[i]['comment'] == 'part1':
                 # Ajouter un élément 'part1' avec le contenu de la clé 'text_ocr'
                     div_annexe = ET.SubElement(body, "div", attrib={"type": "part"})
-                #div_annexe.text = data[i]['text_ocr']
+                    div_annexe.text = data[i]['text_ocr']
+                    div_annexe.addprevious(etree.Comment(generate_id("Partie_")))
 
 
                 elif data[i]['comment'] == 'part1 u-beginning seg':
